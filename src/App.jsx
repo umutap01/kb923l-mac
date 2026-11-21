@@ -4,6 +4,7 @@ import Remap from './Remap.jsx';
 import Macro from './Macro.jsx';
 import Layer from './Layer.jsx';
 import ScreenGif from './ScreenGif.jsx';
+import SoftVol from './SoftVol.jsx';
 import { EFFECTS, COLORS, SLEEP, LIGHT_HW, SPEED_MAX, CUSTOM, OFF, decode, encode } from './led.js';
 
 const api = window.kb;
@@ -400,6 +401,7 @@ function Screen({ say }) {
           Şimdi eşitle
         </button>
       </section>
+      <SoftVol />
       <ScreenGif say={say} />
     </div>
   );

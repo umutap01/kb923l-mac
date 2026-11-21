@@ -17,6 +17,7 @@ yazılımı veriyor; bu uygulama onun işlevlerini Mac'e taşıyor ve birkaç ye
 | **Fn katmanı** | Bir katman tuşu seçin (ör. Caps Lock): basılıyken H J K L → oklar gibi; kısa basışta Esc. Tuş (+⌘⌥⌃⇧), medya, fare, makro |
 | **Makro** | Klavyeden kayıt ya da elle; bekleme, metin (Türkçe karakterli), fare tıkı; bir kez / basılı tuttukça / aç-kapa |
 | **Fare tuşları** | Sol / sağ / orta tık, geri / ileri, tekerlek; çift tık ve sürükleme çalışır |
+| **Monitör sesi** | Ses HDMI / DisplayPort monitöre giderken macOS'un ayarlayamadığı seviyeyi yazılımla ayarlar; klavyenin ses düğmesi ve Mac'in ses tuşları çalışır |
 | **Ekran** | Mac'in saati ve ses seviyesi; ekrana **GIF / resim yükleme** (240×240, en çok 35 kare), yuvarlak önizleme |
 | **Hazır ekran görüntüleri** | Fabrika görüntüsü, Apple logosu, dalgalanan Türk bayrağı, Atatürk, radar |
 
@@ -26,7 +27,7 @@ Aydınlatma, özel renkler ve ekran görüntüsü klavyenin kendisine kaydedilir
 
 ## Kurulum
 
-Gereken: Apple Silicon (M1–M4) Mac, macOS 13 ya da üstü, USB kabloyla bağlı KB923L Pro.
+Gereken: Apple Silicon (M1–M4) Mac, macOS 14.2 ya da üstü, USB kabloyla bağlı KB923L Pro.
 
 1. [Releases](../../releases/latest) sayfasından `KB923L-Pro-mac-arm64.zip`'i indirin, açın ve `KB923L Pro.app`'i
    **Uygulamalar** klasörüne sürükleyin.
@@ -40,7 +41,8 @@ Gereken: Apple Silicon (M1–M4) Mac, macOS 13 ya da üstü, USB kabloyla bağl�
 3. Uygulamayı açın ve iki izni verin (Sistem Ayarları → Gizlilik ve Güvenlik):
    - **Giriş İzleme** — klavyeyle konuşmak için (uygulama izin penceresini kendisi açar). İzni verdikten sonra
      uygulamadaki **"Uygulamayı yeniden başlat"**a basın.
-   - **Erişilebilirlik** — yalnız makro, Fn katmanı ve fare tuşları için (ilgili sekmede "İzin iste").
+   - **Erişilebilirlik** — makro, Fn katmanı, fare tuşları ve ses tuşları için (ilgili sekmede "İzin iste").
+   - **Sistem Sesi Kaydı** — yalnız monitör sesini yazılımla ayarlamak için (ses HDMI / DisplayPort'a giderken sorulur).
 
 ### Sorun çıkarsa
 

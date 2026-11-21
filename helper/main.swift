@@ -8,6 +8,7 @@
 //       katman: "key" (kVK, hidutil ile F20'ye yönlendirilmiş tuş) basılıyken "map"teki tuşlar (kVK) başka iş görür.
 //       "tap": katman tuşuna tek başına kısa basınca gönderilecek tuş (kVK, -1 = yok). "key":-1 katmanı kapatır.
 //       Makro hedefinde yardımcı {"ev":"layerMacro","id":..,"d":1|0} yazar; makroyu uygulama oynatır.
+//   {"op":"softvol","on":1,"v":50,"muted":0}   yazılım ses denetimi (softvol.swift); {"ev":"softvol",...} yazar
 //   {"op":"stop"}                 oynatmayı keser, basılı kalan tuşları bırakır
 //   {"op":"trust","prompt":1}     Erişilebilirlik iznini sorar / denetler
 //   {"op":"listen"}               Giriş İzleme iznini sorar (izin penceresini açar, listeye ekler)
@@ -278,14 +279,26 @@ func layerKey(_ type: CGEventType, _ e: CGEvent) -> Unmanaged<CGEvent>? {
 var dragTap: CFMachPort?
 func installDragTap() {
   if dragTap != nil || !trusted(prompt: false) { return }
+  // 14 = NX_SYSDEFINED (ses / medya tuşları)
   let mask = CGEventMask(
-    (1 << CGEventType.mouseMoved.rawValue) | (1 << CGEventType.keyDown.rawValue) | (1 << CGEventType.keyUp.rawValue))
+    (1 << CGEventType.mouseMoved.rawValue) | (1 << CGEventType.keyDown.rawValue) | (1 << CGEventType.keyUp.rawValue)
+      | (1 << 14))
   dragTap = CGEvent.tapCreate(
     tap: .cghidEventTap, place: .headInsertEventTap, options: .defaultTap, eventsOfInterest: mask,
     callback: { _, type, e, _ in
       if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
         if let t = dragTap { CGEvent.tapEnable(tap: t, enable: true) }
         return Unmanaged.passUnretained(e)
+      }
+      if type.rawValue == 14, softvol.handlesKeys, let ns = NSEvent(cgEvent: e), ns.subtype.rawValue == 8 {
+        let code = (ns.data1 & 0xFFFF0000) >> 16
+        if code == 0 || code == 1 || code == 7 {
+          if (ns.data1 & 0xFF00) >> 8 == 0xA {
+            let f = ns.modifierFlags
+            DispatchQueue.main.async { softvol.key(code, fine: f.contains(.shift) && f.contains(.option)) }
+          }
+          return nil  // macOS'un "bu aygıtta ses ayarlanamaz" göstergesi çıkmasın
+        }
       }
       if (type == .keyDown || type == .keyUp) && layer.key >= 0 { return layerKey(type, e) }
       if type == .mouseMoved, let b = pointer.heldButton() {
@@ -336,6 +349,17 @@ func handle(_ line: String) {
       installDragTap()
       emit(["ev": "layer", "v": key >= 0, "tap": dragTap != nil])
     }
+  case "softvol":
+    let on = (o["on"] as? Int ?? 0) != 0
+    let v = o["v"] as? Int
+    let m = o["muted"] as? Int
+    DispatchQueue.main.async {
+      softvol.enabled = on
+      if let v = v { softvol.volume = Float(max(0, min(100, v))) / 100 }
+      if let m = m { softvol.muted = m != 0 }
+      softvol.refresh()
+      installDragTap()
+    }
   case "scroll":
     if trusted(prompt: false) { pointer.scroll(Int32(o["dy"] as? Int ?? 0), Int32(o["dx"] as? Int ?? 0)) }
   case "listen":
@@ -351,7 +375,16 @@ func handle(_ line: String) {
 // stdin ayrı iş parçacığında okunur; ana iş parçacığı olay dinleyicisinin döngüsünü çalıştırır.
 Thread.detachNewThread {
   while let line = readLine() { handle(line) }
+  softvol.shutdown()
   exit(0)
 }
+// Uygulama yardımcıyı SIGTERM ile kapatır: ses kurulumunu sök (mutedWhenTapped sayesinde ses zaten geri gelir)
+signal(SIGTERM, SIG_IGN)
+let termSrc = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
+termSrc.setEventHandler {
+  softvol.shutdown()
+  exit(0)
+}
+termSrc.resume()
 DispatchQueue.main.async { installDragTap() }
 CFRunLoopRun()

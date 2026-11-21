@@ -100,7 +100,9 @@ function getVolume() {
 // Ekrandaki saat ve ses çubuğu: ses değişince ya da 30 sn'de bir gönderilir.
 async function syncScreen(force = false) {
   if (!kb.connected || (!autoSync && !force)) return;
-  const volume = await getVolume();
+  // Yazılım ses denetimi devredeyse (HDMI / DisplayPort çıkış) ekrandaki ses çubuğu onun seviyesini gösterir
+  const sv = macro && macro.softvolState;
+  const volume = sv && sv.active ? (sv.muted ? 0 : sv.v) : await getVolume();
   const now = Date.now();
   if (!force && volume === lastVolume && now - lastSync < 30000) return;
   try {
@@ -162,6 +164,11 @@ ipcMain.handle(
   }),
 );
 ipcMain.handle('kb:cancelScreen', () => (screenCancel = true));
+ipcMain.handle('kb:getSoftvol', () => macro.softvolInfo());
+ipcMain.handle('kb:setSoftvol', (_e, p) => macro.setSoftvol(p));
+ipcMain.handle('kb:openAudioPrivacy', () =>
+  shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_AudioCapture'),
+);
 ipcMain.handle('kb:getMacros', () => macro.macros);
 ipcMain.handle('kb:setMacros', (_e, list) => (macro.setMacros(list), true));
 ipcMain.handle('kb:macroState', () => macro.state());
@@ -258,6 +265,16 @@ function createTray() {
 app.whenReady().then(() => {
   macro = new MacroEngine(app, log, send);
   macro.setRemap(remap.load(app));
+  let volTimer = null;
+  macro.onVolume = () => {
+    // düğme çevrilirken ekrana en çok 150 ms'de bir gönder
+    if (volTimer) return;
+    volTimer = setTimeout(() => {
+      volTimer = null;
+      syncScreen(true);
+    }, 150);
+  };
+  if (macro.softvol.on) macro.startHelper();
   macro.checkTrust(false);
   createWindow();
   createTray();

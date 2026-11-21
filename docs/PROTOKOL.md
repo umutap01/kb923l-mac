@@ -124,3 +124,24 @@ Kod: `electron/screen.cjs`, arayüz `src/ScreenGif.jsx`, deneme `tools/screen-te
 
 Tuzak: canvas'ta renkleri `source-in` ile birden çok `fillRect` hâlinde basmak, her çizimde alanın dışını siliyor ve logo boş çıkıyor.
 Doğrusu önce renkleri çizip sonra maskeyi `destination-in` ile uygulamak.
+
+## Monitör sesi: yazılım ses denetimi (21 Kas 2026, ölçüldü)
+
+Sorun: Mac'in sesi DisplayPort ile monitöre (LG HDR 4K) giderken `osascript -e 'get volume settings'` sonucu
+`output volume: missing value` oluyor. Aygıtın ayarlanabilir `kAudioDevicePropertyVolumeScalar` özelliği yok; ses tuşları ve
+klavyenin düğmesi etkisiz kalıyor. Windows'ta çalışmasının sebebi, Windows'un bu çıkışta sesi yazılımla düşürmesi.
+
+- **DDC/CI denendi, olmadı:** `IOAVServiceWriteI2C` (DCPAVServiceProxy, Location=External, 0x37/0x51) hatasız dönüyor ama
+  VCP okumalarına (0x10 parlaklık, 0x62 ses, 0x8D sessiz) monitör hiç yanıt vermiyor, gelen yanıt hep sıfır.
+  Sağlama tohumu 0x6E^0x51 ve 0x6E, okuma adresi 0x51 ve 0 denendi.
+- **Çözüm `helper/softvol.swift`:** Core Audio process tap (macOS 14.2+) ile `CATapDescription(stereoGlobalTapButExcludeProcesses:
+  [kendi süreci])`, `muteBehavior = .mutedWhenTapped`; özel toplu aygıt (tap girdi, monitör çıktı); IOProc sesi
+  kazançla (seviye², tampon içinde yumuşak geçişle) geçirir.
+  - Yalnız varsayılan çıkışın ayarlanabilir ses özelliği yoksa kurulur. Varsayılan çıkış değişince yeniden değerlendirilir.
+  - Ses tuşları: olay dinleyicisinde NX_SYSDEFINED (14), alt tür 8, `data1>>16` = 0 (aç), 1 (kıs), 7 (sessiz); yutulur
+    ki macOS'un "ayarlanamaz" göstergesi çıkmasın. 16 adım, ⇧⌥ ile 64 adım. Seviye `softvol.json`'da saklanır.
+  - Klavye ekranındaki ses çubuğu bu seviyeyi gösterir (`syncScreen`).
+  - İzin: "Sistem Sesi Kaydı" (`NSAudioCaptureUsageDescription`). Yardımcı kapanırsa `mutedWhenTapped` sayesinde ses
+    kendiliğinden eski hâline döner.
+  - Kullanıcı doğruladı: düğmeyle LG'nin sesi açılıp kısılıyor.
+- Bu yüzden en düşük sürüm macOS 14.2 oldu (yardımcı `-target arm64-apple-macos14.2`).

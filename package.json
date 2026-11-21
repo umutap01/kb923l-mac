@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "start": "vite build && electron .",
-    "helper": "swiftc -O -target arm64-apple-macos13 -o build/kbmacro helper/kbmacro.swift",
+    "helper": "swiftc -O -target arm64-apple-macos14.2 -o build/kbmacro helper/main.swift helper/softvol.swift",
     "dist": "npm run helper && vite build && electron-builder --mac dir && sh tools/sign.sh"
   },
   "type": "module",
@@ -48,11 +48,12 @@
       "category": "public.app-category.utilities",
       "icon": "build/icon.png",
       "extendInfo": {
-        "NSInputMonitoringUsageDescription": "Klavyeye aydınlatma ve ekran ayarlarını göndermek ve makro tuşlarını algılamak için gerekir."
+        "NSInputMonitoringUsageDescription": "Klavyeye aydınlatma ve ekran ayarlarını göndermek ve makro tuşlarını algılamak için gerekir.",
+        "NSAudioCaptureUsageDescription": "Ses çıkışının kendi ses ayarı olmadığında (HDMI / DisplayPort monitör) sesi yazılımla ayarlamak için gerekir."
       },
       "identity": null,
       "hardenedRuntime": false,
-      "minimumSystemVersion": "13.0"
+      "minimumSystemVersion": "14.2"
     },
     "directories": {
       "output": "release"

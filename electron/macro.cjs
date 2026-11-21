@@ -70,6 +70,11 @@ class MacroEngine {
     this.binds = new Map(); // kullanım → makro id ya da 'mouse:<tuş>' (fare tuşu / tekerlek)
     this.scrollTimers = new Map();
     this.layer = null; // { src, tap, entries:[{src, act}] } (keymap.js buildLayerCfg)
+    // Yazılım ses denetimi (helper/softvol.swift): ayar + yardımcının bildirdiği durum
+    this.softvol = { on: true, v: 50, muted: false };
+    this.softvolState = { active: false, device: '', v: 50, muted: false, error: null };
+    this.onVolume = null; // (v, muted) → klavye ekranına gönder
+    this.loadSoftvol();
     this.remap = new Map(); // kayıtta fiziksel kod → hidutil hedefi
     this.handles = new Map(); // yol → { h, iface, down:Set }
     this.recording = false;
@@ -139,6 +144,7 @@ class MacroEngine {
     const h = spawn(p, [], { stdio: ['pipe', 'pipe', 'ignore'] });
     this.helper = h;
     if (this.layer) h.stdin.write(JSON.stringify(this.layerCmd()) + '\n');
+    h.stdin.write(JSON.stringify(this.softvolCmd()) + '\n');
     h.stdout.on('data', (d) => {
       this.helperBuf += d;
       let i;
@@ -169,6 +175,24 @@ class MacroEngine {
       if (this.trusted !== m.v) this.log('erişilebilirlik izni', m.v);
       this.trusted = m.v;
       this.emitState();
+    } else if (m.ev === 'softvol') {
+      const prev = this.softvolState;
+      this.softvolState = {
+        active: !!m.active,
+        device: m.device ?? prev.device,
+        v: m.v ?? prev.v,
+        muted: m.muted ?? prev.muted,
+        error: m.error || null,
+      };
+      if (m.error) this.log('yazılım ses hatası', m.error);
+      if (prev.active !== this.softvolState.active) this.log('yazılım ses', this.softvolState.active ? 'açık' : 'kapalı', this.softvolState.device);
+      if (m.key) {
+        this.softvol.v = m.v;
+        this.softvol.muted = !!m.muted;
+        this.saveSoftvol();
+      }
+      if (this.softvolState.active && this.onVolume) this.onVolume(this.softvolState.muted ? 0 : this.softvolState.v);
+      this.send('kb:softvol', this.softvolInfo());
     } else if (m.ev === 'layerMacro') {
       this.triggerMacro(m.id, !!m.d);
     } else if (m.ev === 'layer') {
@@ -227,7 +251,7 @@ class MacroEngine {
   }
 
   sync() {
-    if ([...this.binds.values()].length || this.layer) this.startHelper();
+    if ([...this.binds.values()].length || this.layer || this.softvol.on) this.startHelper();
     if (!this.needListen()) return this.closeAll();
     let list = [];
     try {
@@ -314,6 +338,39 @@ class MacroEngine {
       usage,
       setTimeout(() => this.scrollTimers.set(usage, setInterval(tick, 60)), 350),
     );
+  }
+
+  // ---- yazılım ses denetimi ----
+  softvolFile() {
+    return path.join(this.app.getPath('userData'), 'softvol.json');
+  }
+
+  loadSoftvol() {
+    try {
+      Object.assign(this.softvol, JSON.parse(fs.readFileSync(this.softvolFile(), 'utf8')));
+    } catch {}
+  }
+
+  saveSoftvol() {
+    try {
+      fs.writeFileSync(this.softvolFile(), JSON.stringify(this.softvol));
+    } catch {}
+  }
+
+  softvolCmd() {
+    return { op: 'softvol', on: this.softvol.on ? 1 : 0, v: this.softvol.v, muted: this.softvol.muted ? 1 : 0 };
+  }
+
+  softvolInfo() {
+    return { ...this.softvol, ...this.softvolState, on: this.softvol.on };
+  }
+
+  setSoftvol(p) {
+    Object.assign(this.softvol, p);
+    this.saveSoftvol();
+    if (this.softvol.on) this.startHelper();
+    if (this.helper) this.cmd(this.softvolCmd());
+    return this.softvolInfo();
   }
 
   // Fn katmanı: tuş olayları yardımcının olay dinleyicisinde çevrilir (sıra bozulmasın diye uygulamada değil).

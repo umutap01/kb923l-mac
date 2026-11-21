@@ -19,6 +19,14 @@ contextBridge.exposeInMainWorld('kb', {
     ipcRenderer.on('kb:screenProgress', fn);
     return () => ipcRenderer.removeListener('kb:screenProgress', fn);
   },
+  getSoftvol: () => ipcRenderer.invoke('kb:getSoftvol'),
+  setSoftvol: (p) => ipcRenderer.invoke('kb:setSoftvol', p),
+  openAudioPrivacy: () => ipcRenderer.invoke('kb:openAudioPrivacy'),
+  onSoftvol: (cb) => {
+    const fn = (_e, s) => cb(s);
+    ipcRenderer.on('kb:softvol', fn);
+    return () => ipcRenderer.removeListener('kb:softvol', fn);
+  },
   getMacros: () => ipcRenderer.invoke('kb:getMacros'),
   setMacros: (list) => ipcRenderer.invoke('kb:setMacros', list),
   macroState: () => ipcRenderer.invoke('kb:macroState'),
