@@ -1,13 +1,13 @@
 {
   "name": "kb923l-mac",
   "version": "1.0.0",
-  "description": "KB923L Pro klavye yapılandırıcısı (macOS)",
+  "description": "Havit KB923L Pro klavyesi için resmî olmayan macOS yapılandırıcı",
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "start": "vite build && electron .",
-    "helper": "swiftc -O -o build/kbmacro helper/kbmacro.swift",
+    "helper": "swiftc -O -target arm64-apple-macos13 -o build/kbmacro helper/kbmacro.swift",
     "dist": "npm run helper && vite build && electron-builder --mac dir && sh tools/sign.sh"
   },
   "type": "module",
@@ -51,12 +51,18 @@
         "NSInputMonitoringUsageDescription": "Klavyeye aydınlatma ve ekran ayarlarını göndermek ve makro tuşlarını algılamak için gerekir."
       },
       "identity": null,
-      "hardenedRuntime": false
+      "hardenedRuntime": false,
+      "minimumSystemVersion": "13.0"
     },
     "directories": {
       "output": "release"
     },
     "npmRebuild": false
   },
-  "author": "KB923L Mac"
+  "author": "KB923L Mac",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/umutap01/kb923l-mac.git"
+  }
 }
