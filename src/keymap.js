@@ -121,6 +121,10 @@ export const ACTIONS = [
   C('Durdur (tarayıcı)', 0x226, 'Tarayıcı'),
   C('Yenile', 0x227, 'Tarayıcı'),
   C('Sık kullanılanlar', 0x22a, 'Tarayıcı'),
+  ...[
+    ['left', 'Sol tık'], ['right', 'Sağ tık'], ['middle', 'Orta tık'], ['back', 'Geri (fare 4)'], ['forward', 'İleri (fare 5)'],
+    ['wheelUp', 'Tekerlek yukarı'], ['wheelDown', 'Tekerlek aşağı'], ['wheelLeft', 'Tekerlek sola'], ['wheelRight', 'Tekerlek sağa'],
+  ].map(([b, label]) => ({ id: 'mouse:' + b, label, group: 'Fare' })),
   // macOS'ta "hiçbir şey" hedefi yok; F24 hiçbir uygulamada atanmamış olduğundan devre dışı yerine kullanılır.
   { id: 'off', label: 'Devre dışı', group: 'Diğer', bytes: OFF_BYTES, usage: PAGE_KB + 0x73 },
 ];
@@ -183,6 +187,8 @@ export function srcUsage(k) {
 // Makro ataması: remap değeri 'macro:<id>'. Tetik tuşu kendi karakterini yazmasın diye F24'e yönlendirilir.
 export const MACRO_PREFIX = 'macro:';
 export const isMacro = (id) => typeof id === 'string' && id.startsWith(MACRO_PREFIX);
+// Uygulamanın Mac'te yürüttüğü atamalar (makro, fare): tuş F24'e gider, iş macro.cjs'de yapılır.
+export const isHostAction = (id) => isMacro(id) || (typeof id === 'string' && id.startsWith('mouse:'));
 const OFF_USAGE = PAGE_KB + 0x73;
 
 // Atamalar → hidutil çiftleri + makro bağları
@@ -193,7 +199,7 @@ export function buildPairs(keys, remap = {}) {
     if (!id || k.led === FN_LED) continue;
     const src = srcUsage(k);
     if (src == null) continue;
-    if (isMacro(id)) {
+    if (isHostAction(id)) {
       pairs.push({ src, dst: OFF_USAGE });
       continue;
     }
@@ -208,9 +214,9 @@ export function buildBinds(keys, remap = {}) {
   const binds = [];
   for (const k of keys) {
     const id = remap[k.led];
-    if (!isMacro(id) || k.led === FN_LED) continue;
+    if (!isHostAction(id) || k.led === FN_LED) continue;
     const src = srcUsage(k);
-    if (src != null) binds.push({ src, macro: id.slice(MACRO_PREFIX.length) });
+    if (src != null) binds.push({ src, macro: isMacro(id) ? id.slice(MACRO_PREFIX.length) : id });
   }
   return binds;
 }

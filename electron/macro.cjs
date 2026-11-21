@@ -58,7 +58,8 @@ class MacroEngine {
     this.log = log;
     this.send = send;
     this.macros = [];
-    this.binds = new Map(); // kullanım → makro id
+    this.binds = new Map(); // kullanım → makro id ya da 'mouse:<tuş>' (fare tuşu / tekerlek)
+    this.scrollTimers = new Map();
     this.remap = new Map(); // kayıtta fiziksel kod → hidutil hedefi
     this.handles = new Map(); // yol → { h, iface, down:Set }
     this.recording = false;
@@ -202,7 +203,7 @@ class MacroEngine {
 
   // Klavye dinleme: bağlı makro varsa ya da kayıt sürüyorsa açık tutulur.
   needListen() {
-    return this.recording || [...this.binds.values()].some((id) => this.macros.some((m) => m.id === id));
+    return this.recording || [...this.binds.values()].some((id) => id.startsWith('mouse:') || this.macros.some((m) => m.id === id));
   }
 
   sync() {
@@ -263,6 +264,7 @@ class MacroEngine {
     }
     const id = this.binds.get(usage);
     if (id == null) return;
+    if (id.startsWith('mouse:')) return this.onMouseKey(usage, id.slice(6), down);
     const m = this.macros.find((x) => x.id === id);
     if (!m) return;
     const mode = m.mode || 'once';
@@ -272,6 +274,22 @@ class MacroEngine {
       if (mode === 'once' && mine) return; // sürüyorsa yeniden başlatma
       this.play(id);
     } else if (mode === 'hold' && mine) this.stop();
+  }
+
+  // Fare tuşu: basma ve bırakma ayrı gider (sürükleme çalışsın). Tekerlek: basılı tuttukça tekrar eder.
+  onMouseKey(usage, b, down) {
+    const wheel = { wheelUp: [1, 0], wheelDown: [-1, 0], wheelLeft: [0, 1], wheelRight: [0, -1] }[b];
+    if (!wheel) return this.cmd({ op: 'mouse', b, d: down ? 1 : 0 });
+    clearTimeout(this.scrollTimers.get(usage));
+    clearInterval(this.scrollTimers.get(usage));
+    this.scrollTimers.delete(usage);
+    if (!down) return;
+    const tick = () => this.cmd({ op: 'scroll', dy: wheel[0] * 3, dx: wheel[1] * 3 });
+    tick();
+    this.scrollTimers.set(
+      usage,
+      setTimeout(() => this.scrollTimers.set(usage, setInterval(tick, 60)), 350),
+    );
   }
 
   record(on) {

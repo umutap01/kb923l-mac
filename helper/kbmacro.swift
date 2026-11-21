@@ -2,6 +2,8 @@
 //   {"op":"play","id":1,"times":1,"steps":[{"k":0,"d":1},{"w":30},{"k":0,"d":0},{"t":"merhaba"},{"m":"left","d":1}]}
 //     times: kaç kez (0 = "stop" gelene dek tekrar)
 //     k: macOS sanal tuş kodu (kVK), d: 1 bas / 0 bırak;  w: bekleme (ms);  t: metin yaz;  m: fare tuşu (left/right/middle)
+//   {"op":"mouse","b":"left","d":1}   fare tuşu bas / bırak (left/right/middle/back/forward)
+//   {"op":"scroll","dy":1,"dx":0}      tekerlek (satır)
 //   {"op":"stop"}                 oynatmayı keser, basılı kalan tuşları bırakır
 //   {"op":"trust","prompt":1}     Erişilebilirlik iznini sorar / denetler
 //   {"op":"listen"}               Giriş İzleme iznini sorar (izin penceresini açar, listeye ekler)
@@ -30,6 +32,63 @@ let modFlag: [Int: CGEventFlags] = [
   55: .maskCommand, 54: .maskCommand, 56: .maskShift, 60: .maskShift,
   58: .maskAlternate, 61: .maskAlternate, 59: .maskControl, 62: .maskControl, 57: .maskAlphaShift,
 ]
+
+// Fare tuşları ve tekerlek. Tıklama sayısı (çift tık) macOS'un çift tık süresine göre izlenir.
+final class Pointer {
+  let lock = NSLock()
+  let src = CGEventSource(stateID: .hidSystemState)
+  var last: (b: String, t: TimeInterval, p: CGPoint, n: Int64)? = nil
+  var held = Set<String>()
+  let dbl: TimeInterval = {
+    let v = UserDefaults(suiteName: ".GlobalPreferences")?.double(forKey: "com.apple.mouse.doubleClickThreshold") ?? 0
+    return v > 0 ? v : 0.5
+  }()
+
+  static func kind(_ b: String, _ isDown: Bool) -> (CGEventType, CGMouseButton) {
+    switch b {
+    case "right": return (isDown ? .rightMouseDown : .rightMouseUp, .right)
+    case "middle": return (isDown ? .otherMouseDown : .otherMouseUp, .center)
+    case "back": return (isDown ? .otherMouseDown : .otherMouseUp, CGMouseButton(rawValue: 3)!)
+    case "forward": return (isDown ? .otherMouseDown : .otherMouseUp, CGMouseButton(rawValue: 4)!)
+    default: return (isDown ? .leftMouseDown : .leftMouseUp, .left)
+    }
+  }
+
+  func button(_ b: String, _ isDown: Bool, _ flags: CGEventFlags = []) {
+    lock.lock()
+    defer { lock.unlock() }
+    let pos = CGEvent(source: nil)?.location ?? .zero
+    let now = Date().timeIntervalSince1970
+    var n: Int64 = 1
+    if isDown {
+      if let l = last, l.b == b, now - l.t < dbl, abs(l.p.x - pos.x) < 5, abs(l.p.y - pos.y) < 5 { n = l.n + 1 }
+      last = (b, now, pos, n)
+      held.insert(b)
+    } else {
+      n = (last?.b == b ? last?.n : nil) ?? 1
+      held.remove(b)
+    }
+    let (t, btn) = Pointer.kind(b, isDown)
+    guard let e = CGEvent(mouseEventSource: src, mouseType: t, mouseCursorPosition: pos, mouseButton: btn) else { return }
+    e.setIntegerValueField(.mouseEventClickState, value: n)
+    e.flags = flags
+    e.post(tap: .cghidEventTap)
+  }
+
+  // Tuşla tutulan fare tuşu: fiziksel fare hareketi "sürükleme" olarak gitmeli (dragTap)
+  func heldButton() -> String? {
+    lock.lock()
+    defer { lock.unlock() }
+    return held.contains("left") ? "left" : held.contains("right") ? "right" : held.first
+  }
+
+  func scroll(_ dy: Int32, _ dx: Int32) {
+    CGEvent(scrollWheelEvent2Source: src, units: .line, wheelCount: 2, wheel1: dy, wheel2: dx, wheel3: 0)?
+      .post(tap: .cghidEventTap)
+  }
+}
+
+let pointer = Pointer()
 
 final class Player {
   let q = DispatchQueue(label: "play")
@@ -71,14 +130,7 @@ final class Player {
   }
 
   func mouse(_ b: String, _ isDown: Bool) {
-    let pos = CGEvent(source: nil)?.location ?? .zero
-    let (t, btn): (CGEventType, CGMouseButton) =
-      b == "right" ? (isDown ? .rightMouseDown : .rightMouseUp, .right)
-      : b == "middle" ? (isDown ? .otherMouseDown : .otherMouseUp, .center)
-      : (isDown ? .leftMouseDown : .leftMouseUp, .left)
-    guard let e = CGEvent(mouseEventSource: src, mouseType: t, mouseCursorPosition: pos, mouseButton: btn) else { return }
-    e.flags = flags
-    e.post(tap: .cghidEventTap)
+    pointer.button(b, isDown, flags)
     if isDown { mouseDown.insert(b) } else { mouseDown.remove(b) }
   }
 
@@ -143,20 +195,52 @@ final class Player {
 let player = Player()
 emit(["ev": "trust", "v": trusted(prompt: false)])
 
-while let line = readLine() {
+// Fare hareketini, tuşla basılı tutulan fare tuşu varken sürüklemeye çevirir (Erişilebilirlik izni gerekir).
+var dragTap: CFMachPort?
+func installDragTap() {
+  if dragTap != nil || !trusted(prompt: false) { return }
+  let mask = CGEventMask(1 << CGEventType.mouseMoved.rawValue)
+  dragTap = CGEvent.tapCreate(
+    tap: .cghidEventTap, place: .headInsertEventTap, options: .defaultTap, eventsOfInterest: mask,
+    callback: { _, type, e, _ in
+      if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+        if let t = dragTap { CGEvent.tapEnable(tap: t, enable: true) }
+        return Unmanaged.passUnretained(e)
+      }
+      if type == .mouseMoved, let b = pointer.heldButton() {
+        e.type = b == "left" ? .leftMouseDragged : b == "right" ? .rightMouseDragged : .otherMouseDragged
+        if b != "left" && b != "right" {
+          e.setIntegerValueField(.mouseEventButtonNumber, value: Int64(Pointer.kind(b, true).1.rawValue))
+        }
+      }
+      return Unmanaged.passUnretained(e)
+    }, userInfo: nil)
+  if let t = dragTap {
+    let rl = CFMachPortCreateRunLoopSource(nil, t, 0)
+    CFRunLoopAddSource(CFRunLoopGetMain(), rl, .commonModes)
+    CGEvent.tapEnable(tap: t, enable: true)
+  }
+}
+
+func handle(_ line: String) {
   guard let d = line.data(using: .utf8),
     let o = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
     let op = o["op"] as? String
-  else { continue }
+  else { return }
   switch op {
   case "play":
     if !trusted(prompt: false) {
       emit(["ev": "trust", "v": false])
-      continue
+      return
     }
     player.play(o["id"] as? Int ?? 0, o["steps"] as? [[String: Any]] ?? [], o["times"] as? Int ?? 1)
   case "stop":
     player.stop()
+  case "mouse":
+    DispatchQueue.main.async { installDragTap() }
+    if trusted(prompt: false) { pointer.button(o["b"] as? String ?? "left", (o["d"] as? Int ?? 1) != 0) }
+  case "scroll":
+    if trusted(prompt: false) { pointer.scroll(Int32(o["dy"] as? Int ?? 0), Int32(o["dx"] as? Int ?? 0)) }
   case "listen":
     let ok = IOHIDRequestAccess(kIOHIDRequestTypeListenEvent)
     emit(["ev": "listen", "v": ok])
@@ -166,3 +250,11 @@ while let line = readLine() {
     break
   }
 }
+
+// stdin ayrı iş parçacığında okunur; ana iş parçacığı olay dinleyicisinin döngüsünü çalıştırır.
+Thread.detachNewThread {
+  while let line = readLine() { handle(line) }
+  exit(0)
+}
+DispatchQueue.main.async { installDragTap() }
+CFRunLoopRun()

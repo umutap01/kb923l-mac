@@ -85,3 +85,17 @@ Kimlik `identifier "com.kb923l.mac" and certificate leaf = H"…"` olur ve derle
 Sertifika yoksa `tools/make-cert.sh` ile oturum anahtar zincirine eklenir.
 electron-builder güvenilmeyen sertifikayı kabul etmediği için imzayı ona bırakmayıp paketten sonra `codesign` ile atıyoruz.
 İzin yoksa uygulama `IOHIDRequestAccess` ile macOS'un izin penceresini kendisi açar.
+
+## Fare tuşları (21 Kas 2026)
+
+Tuş Atama → "Fare" grubu: sol / sağ / orta tık, geri / ileri (fare 4–5), tekerlek (4 yön). Makrolarla aynı yol:
+tuş hidutil ile F24'e gider, `macro.cjs` basmayı ve bırakmayı ayrı ayrı yardımcıya iletir (`{"op":"mouse"}`).
+- Çift tık: yardımcı tıklama sayısını (`mouseEventClickState`) macOS'un çift tık süresine göre artırır.
+- Sürükleme: tuşla bir fare tuşu basılı tutulurken yardımcının olay dinleyicisi (event tap) fiziksel fare hareketini
+  `*MouseDragged`'e çevirir.
+- Tekerlek: basınca 3 satır, 350 ms sonra basılı tuttukça 60 ms'de bir tekrar.
+- Erişilebilirlik izni gerekir; yoksa Tuş Atama sekmesinde uyarı çıkar.
+
+Not: VS Code terminalinden `open` ile açarken `ELECTRON_RUN_AS_NODE` uygulamaya geçer ve uygulama hemen kapanır;
+`env -u ELECTRON_RUN_AS_NODE open "/Applications/KB923L Pro.app"` kullanın. (`spctl` "rejected" demesi önemsiz:
+karantinasız yerel derlemede Gatekeeper açılışı engellemiyor.)

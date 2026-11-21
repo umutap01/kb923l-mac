@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import layout from './data/layout.json';
 import KeyboardView from './KeyboardView.jsx';
-import { ACTIONS, FN_LED, resolveAction, buildPairs, buildBinds, macSwapPreset, isMacro, MACRO_PREFIX } from './keymap.js';
+import { ACTIONS, FN_LED, resolveAction, buildPairs, buildBinds, macSwapPreset, isMacro, isHostAction, MACRO_PREFIX } from './keymap.js';
 
 const api = window.kb;
 const LS_REMAP = 'kb923l.remap';
@@ -47,9 +47,13 @@ export default function Remap({ say }) {
   const [q, setQ] = useState('');
   const [login, setLogin] = useState(false);
   const [macros, setMacros] = useState([]);
+  const [trusted, setTrusted] = useState(null);
   useEffect(() => {
     api.getLogin().then(setLogin);
     api.getMacros().then((m) => setMacros(m || []));
+    api.macroState().then((s) => setTrusted(s.trusted));
+    api.macroTrust(false);
+    return api.onMacroState((s) => setTrusted(s.trusted));
   }, []);
   const macroActions = useMemo(
     () => macros.map((m) => ({ id: MACRO_PREFIX + m.id, label: '⚡ ' + m.name, group: 'Makrolar' })),
@@ -140,6 +144,21 @@ export default function Remap({ say }) {
           }}
         />
       </div>
+      {trusted === false && Object.values(remap).some(isHostAction) && (
+        <section className="card warn">
+          <h3>Erişilebilirlik izni gerekli</h3>
+          <p className="hint">
+            Fare ve makro atamaları Mac'e tıklama / tuş gönderir; bunun için Sistem Ayarları → Gizlilik ve Güvenlik →
+            Erişilebilirlik'te "KB923L Pro" açık olmalı.
+          </p>
+          <div className="row">
+            <button className="primary" onClick={() => (api.macroTrust(true), api.openAccessibility())}>
+              İzin iste
+            </button>
+            <button onClick={() => api.macroTrust(false)}>Yeniden denetle</button>
+          </div>
+        </section>
+      )}
       <div className="cols">
         <section className="card grow">
           {!selKey ? (
@@ -149,7 +168,8 @@ export default function Remap({ say }) {
                 Değiştirmek istediğiniz tuşa klavye görselinde tıklayın, sonra sağdan yeni işlevini seçin. Değiştirilmiş tuşlar
                 kırmızı çerçeveyle gösterilir. Atamalar macOS tarafında yalnız bu klavyeye uygulanır (klavyenin hafızasına
                 yazılmaz; başka bilgisayarda geçerli olmaz). Fn tuşu ve Fn ile açılan işlevler olduğu gibi kalır. Klavyenin
-                Win/Mac modu (Fn+A / Fn+S) Alt ve Win tuşlarının yerini değiştirebilir; atamayı kullandığınız modda yapın.
+                Win/Mac modu (Fn+A / Fn+S) Alt ve Win tuşlarının yerini değiştirebilir; atamayı kullandığınız modda yapın. Fare
+                ve makro atamaları uygulama açıkken (menü çubuğunda) çalışır.
               </p>
             </>
           ) : (
@@ -201,7 +221,7 @@ export default function Remap({ say }) {
         </section>
         <section className="card side-card actions">
           <h3>Yeni işlev</h3>
-          <input className="search" placeholder="Ara (ör. ses, F13, Ctrl)…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input className="search" placeholder="Ara (ör. ses, F13, tık)…" value={q} onChange={(e) => setQ(e.target.value)} />
           <div className="alist">
             {Object.entries(groups).map(([g, list]) => (
               <div key={g}>

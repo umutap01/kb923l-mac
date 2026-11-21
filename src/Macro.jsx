@@ -9,7 +9,7 @@ const MODES = [
   { id: 'hold', label: 'Basılı tuttukça', hint: 'Tuş basılı kaldıkça makro tekrar eder; bırakınca durur.' },
   { id: 'toggle', label: 'Aç / kapa', hint: 'Bir basış tekrarı başlatır, ikinci basış durdurur.' },
 ];
-const MOUSE = { left: 'Sol tık', right: 'Sağ tık', middle: 'Orta tık' };
+const MOUSE = { left: 'Sol tık', right: 'Sağ tık', middle: 'Orta tık', back: 'Geri (fare 4)', forward: 'İleri (fare 5)' };
 const KEY_ACTIONS = ACTIONS.filter((a) => a.usage != null && Math.floor(a.usage / 2 ** 32) === 7 && a.id !== 'off');
 
 const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
