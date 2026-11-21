@@ -1,0 +1,22 @@
+// Her komuttan sonra klavyenin 9 numaralı giriş raporuyla verdiği yanıtları kaydeder.
+import fs from 'fs';
+import { createRequire } from 'module';
+import { buildLayer } from '../src/keymap.js';
+const require = createRequire(import.meta.url);
+const HID = require('node-hid');
+const { Keyboard } = require('../electron/keyboard.cjs');
+const layout = JSON.parse(fs.readFileSync(new URL('../src/data/layout.json', import.meta.url)));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const t0 = Date.now();
+const d = HID.devices().find((d) => d.vendorId === 0x258a && d.productId === 0x0217 && d.interface === 1);
+const lis = new HID.HID(d.path, { nonExclusive: true });
+lis.on('data', (b) => { if (b[0] === 9) console.log(`  +${Date.now() - t0}ms giriş:`, [...b].map((x) => x.toString(16).padStart(2, '0')).join(' ')); });
+const kb = new Keyboard();
+const step = async (name, fn) => { console.log(`+${Date.now() - t0}ms ${name}`); await fn(); await sleep(700); };
+await step('LED oku', () => kb.readLed());
+const led = await kb.readLed();
+await step('LED yaz (aynı)', () => kb.writeLed(led));
+await step('saat yaz', () => kb.writeSysParam({}));
+const { buf } = buildLayer(layout.keys, { 3: 'k29' });
+await step('matris yaz katman 0', () => kb.writeMatrix(buf, 0));
+kb.close(); lis.close();
