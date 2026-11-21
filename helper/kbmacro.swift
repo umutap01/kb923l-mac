@@ -4,12 +4,17 @@
 //     k: macOS sanal tuş kodu (kVK), d: 1 bas / 0 bırak;  w: bekleme (ms);  t: metin yaz;  m: fare tuşu (left/right/middle)
 //   {"op":"mouse","b":"left","d":1}   fare tuşu bas / bırak (left/right/middle/back/forward)
 //   {"op":"scroll","dy":1,"dx":0}      tekerlek (satır)
+//   {"op":"layer","key":90,"tap":53,"map":{"4":{"k":123,"f":0},"38":{"media":16},"40":{"b":"left"},"37":{"macro":"id"}}}
+//       katman: "key" (kVK, hidutil ile F20'ye yönlendirilmiş tuş) basılıyken "map"teki tuşlar (kVK) başka iş görür.
+//       "tap": katman tuşuna tek başına kısa basınca gönderilecek tuş (kVK, -1 = yok). "key":-1 katmanı kapatır.
+//       Makro hedefinde yardımcı {"ev":"layerMacro","id":..,"d":1|0} yazar; makroyu uygulama oynatır.
 //   {"op":"stop"}                 oynatmayı keser, basılı kalan tuşları bırakır
 //   {"op":"trust","prompt":1}     Erişilebilirlik iznini sorar / denetler
 //   {"op":"listen"}               Giriş İzleme iznini sorar (izin penceresini açar, listeye ekler)
 // Çıktı (stdout, satır başına JSON): {"ev":"trust","v":true}  {"ev":"done","id":1}
 // Tuş göndermek için Erişilebilirlik izni gerekir; izin uygulamaya (sorumlu süreç) verilir.
 
+import AppKit
 import ApplicationServices
 import Foundation
 import IOKit.hid
@@ -196,10 +201,85 @@ let player = Player()
 emit(["ev": "trust", "v": trusted(prompt: false)])
 
 // Fare hareketini, tuşla basılı tutulan fare tuşu varken sürüklemeye çevirir (Erişilebilirlik izni gerekir).
+// Fn katmanı durumu (yalnız ana iş parçacığında: olay dinleyicisi orada çalışır)
+final class Layer {
+  var key: Int64 = -1
+  var tap: Int = -1
+  var map: [Int64: [String: Any]] = [:]
+  var on = false
+  var used = false
+  var t0: TimeInterval = 0
+  var held: [Int64: [String: Any]] = [:]
+}
+let layer = Layer()
+
+// NX_KEYTYPE_* (medya tuşları, NSSystemDefined olayıyla gönderilir)
+func media(_ key: Int, _ down: Bool) {
+  let ev = NSEvent.otherEvent(
+    with: .systemDefined, location: .zero, modifierFlags: NSEvent.ModifierFlags(rawValue: down ? 0xa00 : 0xb00),
+    timestamp: 0, windowNumber: 0, context: nil, subtype: 8, data1: (key << 16) | ((down ? 0xa : 0xb) << 8), data2: -1)
+  ev?.cgEvent?.post(tap: .cghidEventTap)
+}
+
+func layerApply(_ a: [String: Any], _ e: CGEvent, _ down: Bool, _ rep: Bool) -> Unmanaged<CGEvent>? {
+  if let k = a["k"] as? Int {
+    e.setIntegerValueField(.keyboardEventKeycode, value: Int64(k))
+    e.flags = CGEventFlags(rawValue: e.flags.rawValue | UInt64(a["f"] as? Int ?? 0))
+    return Unmanaged.passUnretained(e)
+  }
+  if let m = a["media"] as? Int {
+    media(m, down)
+  } else if let b = a["b"] as? String {
+    let wheel: [String: (Int32, Int32)] = ["wheelUp": (3, 0), "wheelDown": (-3, 0), "wheelLeft": (0, 3), "wheelRight": (0, -3)]
+    if let w = wheel[b] {
+      if down { pointer.scroll(w.0, w.1) }
+    } else if !rep {
+      pointer.button(b, down)
+    }
+  } else if let id = a["macro"] as? String, !rep {
+    emit(["ev": "layerMacro", "id": id, "d": down ? 1 : 0])
+  }
+  return nil
+}
+
+func layerKey(_ type: CGEventType, _ e: CGEvent) -> Unmanaged<CGEvent>? {
+  let code = e.getIntegerValueField(.keyboardEventKeycode)
+  let rep = e.getIntegerValueField(.keyboardEventAutorepeat) != 0
+  let down = type == .keyDown
+  let now = Date().timeIntervalSince1970
+  if code == layer.key {
+    if down {
+      if !rep { layer.on = true; layer.used = false; layer.t0 = now }
+    } else {
+      layer.on = false
+      if !layer.used && now - layer.t0 < 0.3 && layer.tap >= 0 {
+        for d in [true, false] {
+          let t = CGEvent(keyboardEventSource: nil, virtualKey: CGKeyCode(layer.tap), keyDown: d)
+          t?.flags = e.flags
+          t?.post(tap: .cghidEventTap)
+        }
+      }
+    }
+    return nil
+  }
+  if layer.on, down, let a = layer.map[code] {
+    layer.used = true
+    layer.held[code] = a
+    return layerApply(a, e, true, rep)
+  }
+  if let a = layer.held[code] {
+    if !down { layer.held[code] = nil }
+    return layerApply(a, e, down, rep)
+  }
+  if layer.on && down { layer.used = true }
+  return Unmanaged.passUnretained(e)
+}
+
 var dragTap: CFMachPort?
 func installDragTap() {
   if dragTap != nil || !trusted(prompt: false) { return }
-  let mask = CGEventMask(1 << CGEventType.mouseMoved.rawValue)
+  let mask = CGEventMask(
+    (1 << CGEventType.mouseMoved.rawValue) | (1 << CGEventType.keyDown.rawValue) | (1 << CGEventType.keyUp.rawValue))
   dragTap = CGEvent.tapCreate(
     tap: .cghidEventTap, place: .headInsertEventTap, options: .defaultTap, eventsOfInterest: mask,
     callback: { _, type, e, _ in
@@ -207,6 +287,7 @@ func installDragTap() {
         if let t = dragTap { CGEvent.tapEnable(tap: t, enable: true) }
         return Unmanaged.passUnretained(e)
       }
+      if (type == .keyDown || type == .keyUp) && layer.key >= 0 { return layerKey(type, e) }
       if type == .mouseMoved, let b = pointer.heldButton() {
         e.type = b == "left" ? .leftMouseDragged : b == "right" ? .rightMouseDragged : .otherMouseDragged
         if b != "left" && b != "right" {
@@ -239,6 +320,22 @@ func handle(_ line: String) {
   case "mouse":
     DispatchQueue.main.async { installDragTap() }
     if trusted(prompt: false) { pointer.button(o["b"] as? String ?? "left", (o["d"] as? Int ?? 1) != 0) }
+  case "layer":
+    let key = Int64(o["key"] as? Int ?? -1)
+    let tap = o["tap"] as? Int ?? -1
+    var map: [Int64: [String: Any]] = [:]
+    for (k, v) in o["map"] as? [String: Any] ?? [:] {
+      if let c = Int64(k), let a = v as? [String: Any] { map[c] = a }
+    }
+    DispatchQueue.main.async {
+      layer.key = key
+      layer.tap = tap
+      layer.map = map
+      layer.on = false
+      layer.held = [:]
+      installDragTap()
+      emit(["ev": "layer", "v": key >= 0, "tap": dragTap != nil])
+    }
   case "scroll":
     if trusted(prompt: false) { pointer.scroll(Int32(o["dy"] as? Int ?? 0), Int32(o["dx"] as? Int ?? 0)) }
   case "listen":

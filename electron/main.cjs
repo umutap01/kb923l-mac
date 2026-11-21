@@ -136,6 +136,7 @@ ipcMain.handle(
     remap.save(app, pairs);
     macro.setRemap(pairs);
     macro.setBinds(Array.isArray(arg) ? [] : arg.binds || []);
+    if (!Array.isArray(arg) && 'layer' in arg) macro.setLayer(arg.layer);
     return applyRemap(pairs);
   }),
 );

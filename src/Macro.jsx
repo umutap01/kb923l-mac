@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import layout from './data/layout.json';
-import { ACTIONS, usageLabel, buildPairs, buildBinds } from './keymap.js';
+import { ACTIONS, usageLabel } from './keymap.js';
+import { applyAll, lsLoad, LS_REMAP, LS_REMAP_SENT, LS_LAYER, LS_LAYER_SENT } from './apply.js';
 
 const api = window.kb;
 
@@ -98,17 +98,21 @@ export default function Macro({ say }) {
     if (!window.confirm(`"${draft.name}" silinsin mi? Bağlı olduğu tuş varsayılana döner.`)) return;
     const list = macros.filter((x) => x.id !== draft.id);
     await persist(list);
-    // Bağlı olduğu tuşları varsayılana döndür ve atamaları yeniden uygula
+    // Bağlı olduğu tuşları (temel katman ve Fn katmanı) varsayılana döndür ve atamaları yeniden uygula
+    const mid = 'macro:' + draft.id;
     let freed = 0;
-    for (const key of ['kb923l.remap', 'kb923l.remapApplied']) {
-      try {
-        const r = JSON.parse(localStorage.getItem(key)) || {};
-        for (const k of Object.keys(r)) if (r[k] === 'macro:' + draft.id) delete r[k], freed++;
-        localStorage.setItem(key, JSON.stringify(r));
-        if (key === 'kb923l.remapApplied' && freed)
-          await api.applyRemap({ pairs: buildPairs(layout.keys, r), binds: buildBinds(layout.keys, r) });
-      } catch {}
+    for (const key of [LS_REMAP, LS_REMAP_SENT]) {
+      const r = lsLoad(key, {});
+      for (const k of Object.keys(r)) if (r[k] === mid) delete r[k], freed++;
+      localStorage.setItem(key, JSON.stringify(r));
     }
+    for (const key of [LS_LAYER, LS_LAYER_SENT]) {
+      const l = lsLoad(key, null);
+      if (!l || !l.map) continue;
+      for (const k of Object.keys(l.map)) if (l.map[k]?.id === mid) delete l.map[k], freed++;
+      localStorage.setItem(key, JSON.stringify(l));
+    }
+    if (freed) await applyAll();
     setSelId(list[0]?.id ?? null);
     setDraft(list[0] ? structuredClone(list[0]) : null);
     say('Makro silindi.');

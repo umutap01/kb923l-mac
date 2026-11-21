@@ -227,3 +227,69 @@ export function usageLabel(u) {
   const a = ACTION_BY_ID['k' + u.toString(16)];
   return a ? a.label : '0x' + u.toString(16);
 }
+
+// ---- Fn katmanı (Mac tarafında, 21 Kas 2026) ----
+// Klavyenin Fn tuşu firmware'de işlenir, Mac'e kod göndermez (rapor tanımında Fn alanı yok). Bu yüzden kullanıcı
+// bir "katman tuşu" seçer; hidutil onu F20'ye yönlendirir, yardımcının olay dinleyicisi F20 basılıyken
+// katmandaki tuşları çevirir. Katman: { key: led, tap: actionId|null, map: { led: { id, mods } } }
+export const LAYER_USAGE = PAGE_KB + 0x6f; // F20
+const MEDIA_OK = new Set([0xe9, 0xea, 0x6f, 0x70, 0xe2, 0xcd, 0xb5, 0xb6]);
+const isKbUsage = (u) => u != null && Math.floor(u / 2 ** 32) === 7;
+
+// Katmanda seçilebilen işlevler
+export function layerActionOk(a) {
+  if (!a || a.id === 'off') return false;
+  if (isMacro(a.id) || a.id.startsWith('mouse:')) return true;
+  if (isKbUsage(a.usage)) return true;
+  return a.usage != null && MEDIA_OK.has(a.usage - PAGE_CONSUMER);
+}
+
+// Tuşun Mac'e şu an gönderdiği kod (temel katmandaki ataması dahil); makro / fare atanmışsa null
+export function effectiveUsage(k, remap = {}) {
+  const id = remap[k.led];
+  if (id) {
+    if (isHostAction(id)) return null;
+    const a = resolveAction(id);
+    return a && isKbUsage(a.usage) ? a.usage : null;
+  }
+  return srcUsage(k);
+}
+
+export function buildLayerCfg(keys, remap = {}, layer = null) {
+  if (!layer || layer.key == null) return null;
+  const byLed = Object.fromEntries(keys.map((k) => [k.led, k]));
+  const lk = byLed[layer.key];
+  const src = lk && srcUsage(lk);
+  if (src == null) return null;
+  const tapA = layer.tap ? resolveAction(layer.tap) : null;
+  const entries = [];
+  for (const [led, v] of Object.entries(layer.map || {})) {
+    const k = byLed[led];
+    if (!k || k.led === layer.key || k.led === FN_LED || !v) continue;
+    const u = effectiveUsage(k, remap);
+    if (u == null) continue;
+    let act = null;
+    if (isMacro(v.id)) act = { macro: v.id.slice(MACRO_PREFIX.length) };
+    else if (v.id.startsWith('mouse:')) act = { mouse: v.id.slice(6) };
+    else {
+      const a = resolveAction(v.id);
+      if (a && isKbUsage(a.usage)) act = { key: a.usage - PAGE_KB, mods: v.mods || 0 };
+      else if (a && a.usage != null) act = { media: a.usage - PAGE_CONSUMER };
+    }
+    if (act) entries.push({ src: u, act });
+  }
+  return { src, tap: tapA && isKbUsage(tapA.usage) ? tapA.usage : null, entries };
+}
+
+// Hazır: H J K L → oklar, U / O → Home / End, Y / P → Page Up / Down
+export function vimPreset(keys) {
+  const want = { H: 'k50', J: 'k51', K: 'k52', L: 'k4f', U: 'k4a', O: 'k4d', Y: 'k4b', P: 'k4e' };
+  const map = {};
+  for (const k of keys) {
+    const u = srcUsage(k);
+    if (u == null) continue;
+    const letter = u - PAGE_KB >= 0x04 && u - PAGE_KB <= 0x1d ? String.fromCharCode(65 + u - PAGE_KB - 4) : null;
+    if (letter && want[letter]) map[k.led] = { id: want[letter], mods: 0 };
+  }
+  return map;
+}

@@ -99,3 +99,18 @@ tuş hidutil ile F24'e gider, `macro.cjs` basmayı ve bırakmayı ayrı ayrı ya
 Not: VS Code terminalinden `open` ile açarken `ELECTRON_RUN_AS_NODE` uygulamaya geçer ve uygulama hemen kapanır;
 `env -u ELECTRON_RUN_AS_NODE open "/Applications/KB923L Pro.app"` kullanın. (`spctl` "rejected" demesi önemsiz:
 karantinasız yerel derlemede Gatekeeper açılışı engellemiyor.)
+
+## Fn katmanı (21 Kas 2026)
+
+Klavyenin Fn tuşu firmware'de işlenir ve Mac'e kod göndermez (rapor tanımlayıcısında Fn alanı yok). Bu yüzden katman Mac'te:
+- Kullanıcı bir **katman tuşu** seçer (önerilen Caps Lock). hidutil onu F20'ye (HID 0x6f, kVK 90) yönlendirir.
+- Yardımcının olay dinleyicisi (`helper/kbmacro.swift`, `layerKey`) F20 basılıyken katmandaki tuşların kVK'sını ve
+  bayraklarını olayın üzerinde değiştirir. Sıra bozulmaz, çünkü iş Node'da değil, olay akışının içinde yapılır.
+  Katman bırakıldıktan sonra gelen bırakma olayı da çevrilir; otomatik tekrar da çalışır.
+- Kısa basış (300 ms altı, araya başka tuş girmemişse) seçilen tuşu gönderir (Caps Lock için Esc).
+- Hedefler: tuş (+⌘⌥⌃⇧), medya (ses ±, sessiz, oynat, önceki/sonraki, parlaklık; NSSystemDefined), fare, makro
+  (yardımcı `layerMacro` olayı yazar, makroyu uygulama oynatır).
+- Kaynak tuş, temel katmandaki atamasıyla Mac'e giden koddur (`effectiveUsage`). Makro / fare atanmış tuş katmanda kullanılamaz.
+- Arayüz tarafında `src/apply.js` temel atamayı, bağları ve katmanı tek hidutil listesinde birleştirir.
+- Sınama: oturum düzeyinde yutan bir dinleyiciyle sahte F20 / J / K olayları gönderildi. Sonuç `↓123 ↑123 ↓124+cmd ↑124+cmd ↓38 ↑38`
+  (katmanlı J → ←, K → ⌘→, katmansız J değişmedi).

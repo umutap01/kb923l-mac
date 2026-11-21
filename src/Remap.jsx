@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import layout from './data/layout.json';
 import KeyboardView from './KeyboardView.jsx';
+import { applyAll } from './apply.js';
 import { ACTIONS, FN_LED, resolveAction, buildPairs, buildBinds, macSwapPreset, isMacro, isHostAction, MACRO_PREFIX } from './keymap.js';
 
 const api = window.kb;
@@ -118,7 +119,7 @@ export default function Remap({ say }) {
 
   const send = async (r = remap) => {
     setBusy(true);
-    const res = await api.applyRemap({ pairs: buildPairs(layout.keys, r), binds: buildBinds(layout.keys, r) });
+    const res = await applyAll({ remap: r });
     setBusy(false);
     if (!res.ok) return say('Uygulanamadı: ' + res.error, true);
     setSent(r);

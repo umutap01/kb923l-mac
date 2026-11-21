@@ -31,6 +31,15 @@ const HID2KVK = {
   0xe0: 59, 0xe1: 56, 0xe2: 58, 0xe3: 55, 0xe4: 62, 0xe5: 60, 0xe6: 61, 0xe7: 54,
 };
 
+// Tüketici (medya) kullanımı → NX_KEYTYPE (Fn katmanında medya tuşu için)
+const CONSUMER2NX = { 0xe9: 0, 0xea: 1, 0x6f: 2, 0x70: 3, 0xe2: 7, 0xcd: 16, 0xb5: 17, 0xb6: 18 };
+// HID değiştirici bitleri (0x01 Ctrl, 0x02 Shift, 0x04 Alt, 0x08 Win/⌘; sağdakiler <<4) → CGEventFlags
+function modsToFlags(m) {
+  const b = (m | (m >> 4)) & 0x0f;
+  return (b & 1 ? 0x40000 : 0) | (b & 2 ? 0x20000 : 0) | (b & 4 ? 0x80000 : 0) | (b & 8 ? 0x100000 : 0);
+}
+const LAYER_KVK = 90; // katman tuşu hidutil ile F20'ye (HID 0x6f) yönlendirilir
+
 function helperPath(app) {
   return app.isPackaged ? path.join(process.resourcesPath, 'kbmacro') : path.join(__dirname, '..', 'build', 'kbmacro');
 }
@@ -60,6 +69,7 @@ class MacroEngine {
     this.macros = [];
     this.binds = new Map(); // kullanım → makro id ya da 'mouse:<tuş>' (fare tuşu / tekerlek)
     this.scrollTimers = new Map();
+    this.layer = null; // { src, tap, entries:[{src, act}] } (keymap.js buildLayerCfg)
     this.remap = new Map(); // kayıtta fiziksel kod → hidutil hedefi
     this.handles = new Map(); // yol → { h, iface, down:Set }
     this.recording = false;
@@ -81,6 +91,7 @@ class MacroEngine {
       const j = JSON.parse(fs.readFileSync(this.file(), 'utf8'));
       this.macros = Array.isArray(j.macros) ? j.macros : [];
       this.binds = new Map((j.binds || []).map((b) => [b.src, b.macro]));
+      this.layer = j.layer || null;
     } catch {}
   }
 
@@ -88,7 +99,11 @@ class MacroEngine {
     fs.mkdirSync(path.dirname(this.file()), { recursive: true });
     fs.writeFileSync(
       this.file(),
-      JSON.stringify({ macros: this.macros, binds: [...this.binds].map(([src, macro]) => ({ src, macro })) }, null, 1),
+      JSON.stringify(
+        { macros: this.macros, binds: [...this.binds].map(([src, macro]) => ({ src, macro })), layer: this.layer },
+        null,
+        1,
+      ),
     );
   }
 
@@ -123,6 +138,7 @@ class MacroEngine {
     if (!fs.existsSync(p)) return this.log('makro yardımcısı yok', p);
     const h = spawn(p, [], { stdio: ['pipe', 'pipe', 'ignore'] });
     this.helper = h;
+    if (this.layer) h.stdin.write(JSON.stringify(this.layerCmd()) + '\n');
     h.stdout.on('data', (d) => {
       this.helperBuf += d;
       let i;
@@ -153,6 +169,10 @@ class MacroEngine {
       if (this.trusted !== m.v) this.log('erişilebilirlik izni', m.v);
       this.trusted = m.v;
       this.emitState();
+    } else if (m.ev === 'layerMacro') {
+      this.triggerMacro(m.id, !!m.d);
+    } else if (m.ev === 'layer') {
+      this.log('fn katmanı', m.v ? 'açık' : 'kapalı', 'olay dinleyicisi', m.tap);
     } else if (m.ev === 'listen') {
       this.log('giriş izleme izni', m.v);
     } else if (m.ev === 'done' && this.playing && this.playing.seq === m.id) {
@@ -207,8 +227,8 @@ class MacroEngine {
   }
 
   sync() {
+    if ([...this.binds.values()].length || this.layer) this.startHelper();
     if (!this.needListen()) return this.closeAll();
-    if ([...this.binds.values()].length) this.startHelper();
     let list = [];
     try {
       list = HID.devices().filter((d) => d.vendorId === VID && d.productId === PID);
@@ -265,6 +285,10 @@ class MacroEngine {
     const id = this.binds.get(usage);
     if (id == null) return;
     if (id.startsWith('mouse:')) return this.onMouseKey(usage, id.slice(6), down);
+    this.triggerMacro(id, down);
+  }
+
+  triggerMacro(id, down) {
     const m = this.macros.find((x) => x.id === id);
     if (!m) return;
     const mode = m.mode || 'once';
@@ -290,6 +314,30 @@ class MacroEngine {
       usage,
       setTimeout(() => this.scrollTimers.set(usage, setInterval(tick, 60)), 350),
     );
+  }
+
+  // Fn katmanı: tuş olayları yardımcının olay dinleyicisinde çevrilir (sıra bozulmasın diye uygulamada değil).
+  setLayer(layer) {
+    this.layer = layer && layer.entries ? layer : null;
+    this.save();
+    if (this.layer) this.startHelper();
+    if (this.helper) this.cmd(this.layerCmd());
+  }
+
+  layerCmd() {
+    const L = this.layer;
+    if (!L) return { op: 'layer', key: -1, tap: -1, map: {} };
+    const kvk = (u) => (u == null ? undefined : HID2KVK[u - PAGE_KB]);
+    const map = {};
+    for (const { src, act } of L.entries) {
+      const c = kvk(src);
+      if (c == null || !act) continue;
+      if (act.key != null && HID2KVK[act.key] != null) map[c] = { k: HID2KVK[act.key], f: modsToFlags(act.mods || 0) };
+      else if (act.media != null && CONSUMER2NX[act.media] != null) map[c] = { media: CONSUMER2NX[act.media] };
+      else if (act.mouse) map[c] = { b: act.mouse };
+      else if (act.macro) map[c] = { macro: act.macro };
+    }
+    return { op: 'layer', key: LAYER_KVK, tap: kvk(L.tap) ?? -1, map };
   }
 
   record(on) {

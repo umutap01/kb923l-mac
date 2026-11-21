@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import KeyboardView, { ALL_LEDS } from './KeyboardView.jsx';
 import Remap from './Remap.jsx';
 import Macro from './Macro.jsx';
+import Layer from './Layer.jsx';
 import { EFFECTS, COLORS, SLEEP, LIGHT_HW, SPEED_MAX, CUSTOM, OFF, decode, encode } from './led.js';
 
 const api = window.kb;
@@ -9,6 +10,7 @@ const TABS = [
   { id: 'light', label: 'Aydınlatma' },
   { id: 'custom', label: 'Özel Renkler' },
   { id: 'remap', label: 'Tuş Atama' },
+  { id: 'layer', label: 'Fn Katmanı' },
   { id: 'macro', label: 'Makro' },
   { id: 'screen', label: 'Ekran ve Saat' },
   { id: 'settings', label: 'Klavye' },
@@ -120,6 +122,8 @@ export default function App() {
             <Custom cfg={cfg} apply={apply} setPer={setPer} say={say} />
           ) : tab === 'remap' ? (
             <Remap say={say} />
+          ) : tab === 'layer' ? (
+            <Layer say={say} />
           ) : tab === 'macro' ? (
             <Macro say={say} />
           ) : tab === 'screen' ? (
@@ -415,7 +419,9 @@ function Settings({ cfg, apply, say, reload }) {
             if (!r.ok) return say('Gönderilemedi: ' + r.error, true);
             localStorage.removeItem('kb923l.remap');
             localStorage.removeItem('kb923l.remapApplied');
-            await api.applyRemap({ pairs: [], binds: [] });
+            localStorage.removeItem('kb923l.layer');
+            localStorage.removeItem('kb923l.layerApplied');
+            await api.applyRemap({ pairs: [], binds: [], layer: null });
             say('Fabrika ayarları yüklendi.');
             setTimeout(reload, 1500);
           }}
