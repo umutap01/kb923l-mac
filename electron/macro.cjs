@@ -152,6 +152,8 @@ class MacroEngine {
       if (this.trusted !== m.v) this.log('erişilebilirlik izni', m.v);
       this.trusted = m.v;
       this.emitState();
+    } else if (m.ev === 'listen') {
+      this.log('giriş izleme izni', m.v);
     } else if (m.ev === 'done' && this.playing && this.playing.seq === m.id) {
       this.playing = null;
       this.emitState();

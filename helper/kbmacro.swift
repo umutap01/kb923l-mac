@@ -4,11 +4,13 @@
 //     k: macOS sanal tuş kodu (kVK), d: 1 bas / 0 bırak;  w: bekleme (ms);  t: metin yaz;  m: fare tuşu (left/right/middle)
 //   {"op":"stop"}                 oynatmayı keser, basılı kalan tuşları bırakır
 //   {"op":"trust","prompt":1}     Erişilebilirlik iznini sorar / denetler
+//   {"op":"listen"}               Giriş İzleme iznini sorar (izin penceresini açar, listeye ekler)
 // Çıktı (stdout, satır başına JSON): {"ev":"trust","v":true}  {"ev":"done","id":1}
 // Tuş göndermek için Erişilebilirlik izni gerekir; izin uygulamaya (sorumlu süreç) verilir.
 
 import ApplicationServices
 import Foundation
+import IOKit.hid
 
 let out = FileHandle.standardOutput
 func emit(_ o: [String: Any]) {
@@ -155,6 +157,9 @@ while let line = readLine() {
     player.play(o["id"] as? Int ?? 0, o["steps"] as? [[String: Any]] ?? [], o["times"] as? Int ?? 1)
   case "stop":
     player.stop()
+  case "listen":
+    let ok = IOHIDRequestAccess(kIOHIDRequestTypeListenEvent)
+    emit(["ev": "listen", "v": ok])
   case "trust":
     emit(["ev": "trust", "v": trusted(prompt: (o["prompt"] as? Int ?? 0) != 0)])
   default:

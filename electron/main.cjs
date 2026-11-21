@@ -75,6 +75,11 @@ function poll() {
       lastSync = 0;
     } catch (e) {
       if (status.error !== errText(e)) log('açma hatası', String(e && e.message));
+      // Giriş İzleme izni yoksa macOS'un izin penceresini bir kez aç (uygulamayı listeye de ekler)
+      if (errText(e) === 'PERMISSION' && macro && !poll.asked) {
+        poll.asked = true;
+        macro.cmd({ op: 'listen' });
+      }
       setStatus({ present: true, connected: false, error: errText(e) });
     }
   } else {

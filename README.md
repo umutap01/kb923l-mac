@@ -75,3 +75,13 @@ Firmware'e makro yazımı (komut 0x05) tuş matrisine bağlı; matris yazımı k
 - **Biçimler:** bir kez (1–99 tekrar), basılı tuttukça, aç/kapa.
 - Saklama: `~/Library/Application Support/KB923L Pro/macros.json` (makrolar + bağlar), `remap.json` (hidutil çiftleri).
 - Uygulama kapalıyken makrolar çalışmaz; tetik tuşu da F24 kalır (Tuş Atama → "Tümünü kaldır" ya da hidutil kurtarma komutu).
+
+## İmza ve izinler (21 Kas 2026)
+
+Ad-hoc imzada uygulamanın kimliği (cdhash) her derlemede değişiyor, macOS da Giriş İzleme ve Erişilebilirlik iznini
+bu kimliğe bağlıyor. Bu yüzden her yeni sürümde izinler sessizce geçersizleşiyordu ("not permitted").
+Çözüm: `npm run dist` paketi bu Mac'e özel, kendinden imzalı "KB923L Yerel Imza" sertifikasıyla imzalar (`tools/sign.sh`).
+Kimlik `identifier "com.kb923l.mac" and certificate leaf = H"…"` olur ve derlemeler arasında aynı kalır.
+Sertifika yoksa `tools/make-cert.sh` ile oturum anahtar zincirine eklenir.
+electron-builder güvenilmeyen sertifikayı kabul etmediği için imzayı ona bırakmayıp paketten sonra `codesign` ile atıyoruz.
+İzin yoksa uygulama `IOHIDRequestAccess` ile macOS'un izin penceresini kendisi açar.
