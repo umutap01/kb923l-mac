@@ -152,3 +152,16 @@ button.rec { animation: rec 1.2s infinite; }
   border: 1px solid var(--line); border-radius: 8px; padding: 8px; font: inherit; }
 input.name, input.grow, .testarea, input.num { user-select: text; }
 .row.tools { align-items: center; }
+
+/* Ekran GIF */
+.card.dropping { border-color: var(--acc); background: rgba(218,16,0,.08); }
+.gifbox { display: flex; gap: 22px; margin-top: 16px; align-items: flex-start; }
+.round { width: 240px; height: 240px; border-radius: 50%; overflow: hidden; flex-shrink: 0; background: #000;
+  box-shadow: 0 0 0 8px #2a2a31, 0 0 0 9px #3a3a44; }
+.round canvas { display: block; }
+.gifopts { flex: 1; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.gifopts .sub { color: var(--mute); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lbl { font-size: 13px; }
+.bar { height: 8px; border-radius: 4px; background: var(--card); border: 1px solid var(--line); overflow: hidden; }
+.bar > div { height: 100%; background: var(--acc); transition: width .2s; }
+.check input[type=color] { width: 36px; height: 24px; border: none; background: none; padding: 0; }

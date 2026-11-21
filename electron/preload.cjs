@@ -12,6 +12,13 @@ contextBridge.exposeInMainWorld('kb', {
   writeCustom: (colors) => ipcRenderer.invoke('kb:writeCustom', colors),
   getRemap: () => ipcRenderer.invoke('kb:getRemap'),
   applyRemap: (arg) => ipcRenderer.invoke('kb:applyRemap', arg),
+  uploadScreen: (frames, delay) => ipcRenderer.invoke('kb:uploadScreen', frames, delay),
+  cancelScreen: () => ipcRenderer.invoke('kb:cancelScreen'),
+  onScreenProgress: (cb) => {
+    const fn = (_e, p) => cb(p);
+    ipcRenderer.on('kb:screenProgress', fn);
+    return () => ipcRenderer.removeListener('kb:screenProgress', fn);
+  },
   getMacros: () => ipcRenderer.invoke('kb:getMacros'),
   setMacros: (list) => ipcRenderer.invoke('kb:setMacros', list),
   macroState: () => ipcRenderer.invoke('kb:macroState'),

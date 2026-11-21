@@ -5,6 +5,7 @@ const HID = require('node-hid');
 const { Keyboard, findDevice } = require('./keyboard.cjs');
 const remap = require('./remap.cjs');
 const { MacroEngine } = require('./macro.cjs');
+const screen = require('./screen.cjs');
 
 const kb = new Keyboard();
 let win = null;
@@ -140,6 +141,27 @@ ipcMain.handle(
     return applyRemap(pairs);
   }),
 );
+let screenCancel = false;
+ipcMain.handle(
+  'kb:uploadScreen',
+  wrap(async (frames, delay) => {
+    screenCancel = false;
+    const t0 = Date.now();
+    log('ekran yükleme başladı', frames.length, 'kare', delay, 'ms');
+    const r = await screen
+      .upload(kb, frames.map((f) => Buffer.from(f)), delay, {
+        progress: (done, total) => send('kb:screenProgress', { done, total }),
+        cancelled: () => screenCancel,
+      })
+      .catch((e) => {
+        log('ekran yükleme hatası', e.message);
+        throw e;
+      });
+    log('ekran yükleme bitti', JSON.stringify(r), ((Date.now() - t0) / 1000).toFixed(1) + ' sn');
+    return r;
+  }),
+);
+ipcMain.handle('kb:cancelScreen', () => (screenCancel = true));
 ipcMain.handle('kb:getMacros', () => macro.macros);
 ipcMain.handle('kb:setMacros', (_e, list) => (macro.setMacros(list), true));
 ipcMain.handle('kb:macroState', () => macro.state());

@@ -114,3 +114,25 @@ Klavyenin Fn tuşu firmware'de işlenir ve Mac'e kod göndermez (rapor tanımlay
 - Arayüz tarafında `src/apply.js` temel atamayı, bağları ve katmanı tek hidutil listesinde birleştirir.
 - Sınama: oturum düzeyinde yutan bir dinleyiciyle sahte F20 / J / K olayları gönderildi. Sonuç `↓123 ↑123 ↓124+cmd ↑124+cmd ↓38 ↑38`
   (katmanlı J → ←, K → ⌘→, katmansız J değişmedi).
+
+## Ekrana GIF / resim (21 Kas 2026, ölçüldü)
+
+Protokolü DeviceDriver.exe'den çıkardım: `CDevG5KB::AccessData_Page` @ 0x412b20, `SetGIFParam` @ 0x4128a0,
+`BurnScreen` iş parçacığı @ 0x466640, piksel dönüşümü @ 0x466475. Klavyede doğrulandı: test görüntüsü ve
+3 karelik canlandırma doğru göründü, fabrika GIF'inin 35 karesi uygulama üzerinden 131 saniyede yüklendi.
+Kod: `electron/screen.cjs`, arayüz `src/ScreenGif.jsx`, deneme `tools/screen-test.cjs`.
+
+| | |
+|---|---|
+| Ekran aygıtı | 258A:**01B4**, usage 0xFF03/2, rapor 9: 520 bayt özellik, 7 bayt giriş (onay) |
+| KB.ini | `ShowScreen=2`, `siScreen=240,240`, `MaxScreenFrame=35`, `DataUnitSize=512`, `DrawFrameTime=0`, `ScreenCRC` yok (0) |
+| SetGIFParam | komut **0x0D**, 5 bayt `[bayrak<<6 \| dizin, kare LE16, gecikme LE16]`; bayrak 1 = başla, 0 = bitir, 2 = iptal. Önce klavyeye (0217), sonra ekrana gider; ikisi de `09 0A 06 01 01` ile onaylar |
+| Kare | 240×240 **RGB565 büyük uçlu** (`(R>>3)<<11 \| (G>>2)<<5 \| B>>3`, yüksek bayt önce), satır satır; 115200 bayt = 225 sayfa |
+| Sayfa | `[09, 0C, 00, kare, sayfa, sağlama(0), boyLo, boyHi, veri×512]`, yalnız ekran aygıtına; onay `09 0A 06 01 <sayfa>` |
+| Süre | kare başına ~3,5 sn (sayfa başına ~16 ms); tüm kareler tek gecikmeyle oynar |
+
+- Akış: başla, 120 ms bekle, kareler, 50 ms bekle, bitir. Yükleme klavyenin komut kuyruğunu tutar, böylece saat gönderimi araya girmez.
+- 35 karelik bir yüklemede `IOHIDDeviceSetReport ... general error` bir kez görüldü. Yazma artık Windows sürücüsü gibi bekleyip yeniden deniyor.
+- GIF kareleri Chromium'un `ImageDecoder`'ıyla çözülür (birleştirilmiş kare + süre). 35'ten fazla kare eşit aralıkla seçilir;
+  gecikme = toplam süre / seçilen kare sayısı.
+- `src/assets/screen-default.gif` sürücünün `Dev/0217/screen.gif` dosyasıdır (fabrika görüntüsü; 43 kare).
