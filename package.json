@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "start": "vite build && electron .",
-    "dist": "vite build && electron-builder --mac dir"
+    "helper": "swiftc -O -o build/kbmacro helper/kbmacro.swift",
+    "dist": "npm run helper && vite build && electron-builder --mac dir"
   },
   "type": "module",
   "dependencies": {
@@ -31,6 +32,12 @@
       "electron/**",
       "package.json"
     ],
+    "extraResources": [
+      {
+        "from": "build/kbmacro",
+        "to": "kbmacro"
+      }
+    ],
     "asarUnpack": [
       "node_modules/node-hid/**"
     ],
@@ -41,7 +48,7 @@
       "category": "public.app-category.utilities",
       "icon": "build/icon.png",
       "extendInfo": {
-        "NSInputMonitoringUsageDescription": "Klavyeye aydınlatma ve ekran ayarlarını göndermek için gerekir."
+        "NSInputMonitoringUsageDescription": "Klavyeye aydınlatma ve ekran ayarlarını göndermek ve makro tuşlarını algılamak için gerekir."
       },
       "identity": "-",
       "hardenedRuntime": false

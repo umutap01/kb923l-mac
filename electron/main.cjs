@@ -4,6 +4,7 @@ const { execFile } = require('child_process');
 const HID = require('node-hid');
 const { Keyboard, findDevice } = require('./keyboard.cjs');
 const remap = require('./remap.cjs');
+const { MacroEngine } = require('./macro.cjs');
 
 const kb = new Keyboard();
 let win = null;
@@ -12,6 +13,7 @@ let status = { present: false, connected: false, error: null };
 let autoSync = true;
 let lastVolume = -1;
 let lastSync = 0;
+let macro = null;
 
 function send(ch, data) {
   if (win && !win.isDestroyed()) win.webContents.send(ch, data);
@@ -60,6 +62,7 @@ function poll() {
     const pairs = remap.load(app);
     if (pairs.length) setTimeout(() => applyRemap(pairs).catch(() => {}), 800);
   }
+  if (present && macro) macro.sync();
   if (!present) {
     if (kb.connected) kb.close();
     setStatus({ present: false, connected: false, error: null });
@@ -120,12 +123,26 @@ ipcMain.handle('kb:readLed', wrap(async () => [...(await kb.readLed())]));
 ipcMain.handle('kb:writeLed', wrap((bytes) => kb.writeLed(Buffer.from(bytes))));
 ipcMain.handle('kb:writeCustom', wrap((colors) => kb.writeCustomRgb(colors)));
 ipcMain.handle('kb:getRemap', () => remap.load(app));
+// arg: { pairs, binds } (binds: makro tetikleri [{src, macro}])
 ipcMain.handle(
   'kb:applyRemap',
-  wrap(async (pairs) => {
+  wrap(async (arg) => {
+    const pairs = Array.isArray(arg) ? arg : arg.pairs || [];
     remap.save(app, pairs);
+    macro.setRemap(pairs);
+    macro.setBinds(Array.isArray(arg) ? [] : arg.binds || []);
     return applyRemap(pairs);
   }),
+);
+ipcMain.handle('kb:getMacros', () => macro.macros);
+ipcMain.handle('kb:setMacros', (_e, list) => (macro.setMacros(list), true));
+ipcMain.handle('kb:macroState', () => macro.state());
+ipcMain.handle('kb:macroRecord', (_e, on) => (macro.record(on), macro.state()));
+ipcMain.handle('kb:macroPlay', (_e, id) => macro.play(id));
+ipcMain.handle('kb:macroStop', () => macro.stop());
+ipcMain.handle('kb:macroTrust', (_e, prompt) => macro.checkTrust(!!prompt));
+ipcMain.handle('kb:openAccessibility', () =>
+  shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'),
 );
 ipcMain.handle('kb:getLogin', () => app.getLoginItemSettings().openAtLogin);
 ipcMain.handle('kb:setLogin', (_e, v) => {
@@ -211,6 +228,9 @@ function createTray() {
 }
 
 app.whenReady().then(() => {
+  macro = new MacroEngine(app, log, send);
+  macro.setRemap(remap.load(app));
+  macro.checkTrust(false);
   createWindow();
   createTray();
   poll();
@@ -225,4 +245,8 @@ app.on('activate', () => win && (win.show(), win.focus()));
 app.on('before-quit', () => {
   app.isQuitting = true;
   kb.close();
+  if (macro) {
+    macro.closeAll();
+    if (macro.helper) macro.helper.kill();
+  }
 });

@@ -180,16 +180,44 @@ export function srcUsage(k) {
   return null;
 }
 
-// Atamalar → hidutil çiftleri
+// Makro ataması: remap değeri 'macro:<id>'. Tetik tuşu kendi karakterini yazmasın diye F24'e yönlendirilir.
+export const MACRO_PREFIX = 'macro:';
+export const isMacro = (id) => typeof id === 'string' && id.startsWith(MACRO_PREFIX);
+const OFF_USAGE = PAGE_KB + 0x73;
+
+// Atamalar → hidutil çiftleri + makro bağları
 export function buildPairs(keys, remap = {}) {
   const pairs = [];
   for (const k of keys) {
     const id = remap[k.led];
     if (!id || k.led === FN_LED) continue;
-    const a = resolveAction(id);
     const src = srcUsage(k);
-    if (!a || a.usage == null || src == null) continue;
+    if (src == null) continue;
+    if (isMacro(id)) {
+      pairs.push({ src, dst: OFF_USAGE });
+      continue;
+    }
+    const a = resolveAction(id);
+    if (!a || a.usage == null) continue;
     pairs.push({ src, dst: a.usage });
   }
   return pairs;
+}
+
+export function buildBinds(keys, remap = {}) {
+  const binds = [];
+  for (const k of keys) {
+    const id = remap[k.led];
+    if (!isMacro(id) || k.led === FN_LED) continue;
+    const src = srcUsage(k);
+    if (src != null) binds.push({ src, macro: id.slice(MACRO_PREFIX.length) });
+  }
+  return binds;
+}
+
+// Klavye kullanım kodunun (sayfa 7, 0x04..0xe7) okunur adı
+export function usageLabel(u) {
+  if (u >= 0xe0 && u <= 0xe7) return MODS[u - 0xe0].label;
+  const a = ACTION_BY_ID['k' + u.toString(16)];
+  return a ? a.label : '0x' + u.toString(16);
 }

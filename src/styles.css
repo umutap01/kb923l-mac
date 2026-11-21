@@ -58,6 +58,7 @@ button.wide { width: 100%; margin-top: 14px; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
 .card.grow { flex: 1; }
 .card.side-card { width: 320px; flex-shrink: 0; }
+.card.side-card.mside { width: 240px; }
 .card h3 { margin: 0 0 14px; font-size: 14px; font-weight: 600; letter-spacing: .2px; }
 .hint { color: var(--mute); font-size: 12.5px; line-height: 1.5; margin: 6px 0 12px; }
 .row { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -111,7 +112,7 @@ input[type=range] { width: 100%; accent-color: var(--acc); }
 .combo { margin-top: 16px; }
 .chk { display: flex; align-items: center; gap: 5px; font-size: 13px; color: var(--text); }
 .chk input { accent-color: var(--acc); }
-select, .search {
+select, .search, input.name, input.num, input.grow, .testarea {
   font: inherit; color: var(--text); background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px;
 }
 .search { width: 100%; margin-bottom: 10px; }
@@ -124,3 +125,30 @@ select, .search {
 .side-card.actions { width: 360px; }
 
 .row.center { justify-content: center; }
+
+/* Makro */
+.card.warn { border-color: #b8860b; background: rgba(184,134,11,.1); }
+.card h4 { margin: 18px 0 8px; font-size: 12px; font-weight: 600; color: var(--mute); text-transform: uppercase; letter-spacing: .6px; }
+.mlist { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.mitem { display: flex; justify-content: space-between; align-items: center; text-align: left; }
+.mitem small { color: var(--mute); font-size: 11px; }
+.mitem.on { border-color: var(--acc); background: rgba(218,16,0,.16); }
+input.name { flex: 1; font-size: 15px; font-weight: 600; }
+input.num { width: 70px; margin: 0 4px; }
+.row .grow, input.grow { flex: 1; }
+.row + .row { margin-top: 8px; }
+.check.inline { margin: 0 6px; font-size: 13px; }
+button.rec { animation: rec 1.2s infinite; }
+@keyframes rec { 50% { opacity: .6; } }
+.steps { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; max-height: 220px; overflow: auto; padding: 10px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px; min-height: 44px; }
+.step { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 3px 4px 3px 8px; border-radius: 6px;
+  background: rgba(218,16,0,.18); border: 1px solid rgba(218,16,0,.45); }
+.step.up { background: transparent; }
+.step.wait { background: transparent; border-style: dashed; border-color: var(--line); color: var(--mute); }
+.step .num { width: 56px; padding: 2px 4px; font-size: 12px; }
+.step .x { padding: 0 6px; font-size: 13px; line-height: 18px; border: 0; background: transparent; color: var(--mute); }
+.testarea { width: 100%; margin-top: 14px; min-height: 54px; resize: vertical; background: var(--card); color: inherit;
+  border: 1px solid var(--line); border-radius: 8px; padding: 8px; font: inherit; }
+input.name, input.grow, .testarea, input.num { user-select: text; }
+.row.tools { align-items: center; }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import KeyboardView, { ALL_LEDS } from './KeyboardView.jsx';
 import Remap from './Remap.jsx';
+import Macro from './Macro.jsx';
 import { EFFECTS, COLORS, SLEEP, LIGHT_HW, SPEED_MAX, CUSTOM, OFF, decode, encode } from './led.js';
 
 const api = window.kb;
@@ -8,6 +9,7 @@ const TABS = [
   { id: 'light', label: 'Aydınlatma' },
   { id: 'custom', label: 'Özel Renkler' },
   { id: 'remap', label: 'Tuş Atama' },
+  { id: 'macro', label: 'Makro' },
   { id: 'screen', label: 'Ekran ve Saat' },
   { id: 'settings', label: 'Klavye' },
 ];
@@ -118,6 +120,8 @@ export default function App() {
             <Custom cfg={cfg} apply={apply} setPer={setPer} say={say} />
           ) : tab === 'remap' ? (
             <Remap say={say} />
+          ) : tab === 'macro' ? (
+            <Macro say={say} />
           ) : tab === 'screen' ? (
             <Screen say={say} />
           ) : (
@@ -411,6 +415,7 @@ function Settings({ cfg, apply, say, reload }) {
             if (!r.ok) return say('Gönderilemedi: ' + r.error, true);
             localStorage.removeItem('kb923l.remap');
             localStorage.removeItem('kb923l.remapApplied');
+            await api.applyRemap({ pairs: [], binds: [] });
             say('Fabrika ayarları yüklendi.');
             setTimeout(reload, 1500);
           }}

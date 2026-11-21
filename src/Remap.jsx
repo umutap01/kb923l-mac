@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import layout from './data/layout.json';
 import KeyboardView from './KeyboardView.jsx';
-import { ACTIONS, FN_LED, resolveAction, buildPairs, macSwapPreset } from './keymap.js';
+import { ACTIONS, FN_LED, resolveAction, buildPairs, buildBinds, macSwapPreset, isMacro, MACRO_PREFIX } from './keymap.js';
 
 const api = window.kb;
 const LS_REMAP = 'kb923l.remap';
@@ -46,9 +46,16 @@ export default function Remap({ say }) {
   const [sel, setSel] = useState(null);
   const [q, setQ] = useState('');
   const [login, setLogin] = useState(false);
+  const [macros, setMacros] = useState([]);
   useEffect(() => {
     api.getLogin().then(setLogin);
+    api.getMacros().then((m) => setMacros(m || []));
   }, []);
+  const macroActions = useMemo(
+    () => macros.map((m) => ({ id: MACRO_PREFIX + m.id, label: '⚡ ' + m.name, group: 'Makrolar' })),
+    [macros],
+  );
+  const resolve = (id) => (isMacro(id) ? macroActions.find((a) => a.id === id) || null : resolveAction(id));
   const [capture, setCapture] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -87,26 +94,27 @@ export default function Remap({ say }) {
   const labels = useMemo(() => {
     const l = {};
     for (const [led, id] of Object.entries(remap)) {
-      const a = resolveAction(id);
+      const a = resolve(id);
       if (a) l[led] = a.label;
     }
     return l;
-  }, [remap]);
+  }, [remap, macroActions]);
 
   const dirty = JSON.stringify(remap) !== JSON.stringify(sent);
   const groups = useMemo(() => {
     const f = q.trim().toLocaleLowerCase('tr');
     const g = {};
-    for (const a of ACTIONS) {
+    if (!f && !macroActions.length) g['Makrolar'] = [];
+    for (const a of [...macroActions, ...ACTIONS]) {
       if (f && !a.label.toLocaleLowerCase('tr').includes(f) && !a.group.toLocaleLowerCase('tr').includes(f)) continue;
       (g[a.group] ||= []).push(a);
     }
     return g;
-  }, [q]);
+  }, [q, macroActions]);
 
   const send = async (r = remap) => {
     setBusy(true);
-    const res = await api.applyRemap(buildPairs(layout.keys, r));
+    const res = await api.applyRemap({ pairs: buildPairs(layout.keys, r), binds: buildBinds(layout.keys, r) });
     setBusy(false);
     if (!res.ok) return say('Uygulanamadı: ' + res.error, true);
     setSent(r);
@@ -115,7 +123,7 @@ export default function Remap({ say }) {
   };
 
   const selKey = sel != null ? KEY_BY_LED[sel] : null;
-  const cur = sel != null && remap[sel] ? resolveAction(remap[sel]) : null;
+  const cur = sel != null && remap[sel] ? resolve(remap[sel]) : null;
 
   return (
     <div className="panel">
@@ -198,6 +206,7 @@ export default function Remap({ say }) {
             {Object.entries(groups).map(([g, list]) => (
               <div key={g}>
                 <div className="agroup">{g}</div>
+                {!list.length && g === 'Makrolar' && <div className="hint">Henüz makro yok; Makro sekmesinde oluşturun.</div>}
                 <div className="achips">
                   {list.map((a) => (
                     <button
