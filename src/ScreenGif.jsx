@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import defaultGif from './assets/screen-default.gif';
+import { PRESETS } from './presets.js';
 
 // Klavye ekranı: 240x240, yuvarlak, en fazla 35 kare, tek gecikme (tüm kareler için). Bkz. electron/screen.cjs
 const api = window.kb;
@@ -147,6 +148,21 @@ export default function ScreenGif({ say }) {
         >
           Fabrika görüntüsü
         </button>
+        {PRESETS.map((p) => (
+          <button
+            key={p.id}
+            disabled={busy}
+            onClick={async () => {
+              const fr = await p.make();
+              setCount(fr.length);
+              setFit('cover');
+              setDelay(fr[0].ms);
+              setSrc({ name: p.label, frames: fr });
+            }}
+          >
+            {p.label}
+          </button>
+        ))}
         <input
           ref={fileRef}
           type="file"

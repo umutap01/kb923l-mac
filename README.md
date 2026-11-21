@@ -136,3 +136,13 @@ Kod: `electron/screen.cjs`, arayüz `src/ScreenGif.jsx`, deneme `tools/screen-te
 - GIF kareleri Chromium'un `ImageDecoder`'ıyla çözülür (birleştirilmiş kare + süre). 35'ten fazla kare eşit aralıkla seçilir;
   gecikme = toplam süre / seçilen kare sayısı.
 - `src/assets/screen-default.gif` sürücünün `Dev/0217/screen.gif` dosyasıdır (fabrika görüntüsü; 43 kare).
+
+### Hazır ekran görüntüleri (21 Kas 2026)
+
+`src/presets.js`: canvas'ta kare kare çizilir, dosya taşımaz.
+- **Apple logosu:** macOS yazı tipindeki U+F8FF glifi, 1977 gökkuşağı şeritleri, parıltı geçişi. 24 kare, 70 ms.
+- **Türk bayrağı:** 2994 sayılı Kanun ölçüleri, dalgalanma. 20 kare, 80 ms.
+- **Radar:** dönen ışın, sönen hedefler. 30 kare, 60 ms.
+
+Tuzak: canvas'ta renkleri `source-in` ile birden çok `fillRect` hâlinde basmak, her çizimde alanın dışını siliyor ve logo boş çıkıyor.
+Doğrusu önce renkleri çizip sonra maskeyi `destination-in` ile uygulamak.
