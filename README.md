@@ -143,6 +143,9 @@ Kod: `electron/screen.cjs`, arayüz `src/ScreenGif.jsx`, deneme `tools/screen-te
 - **Apple logosu:** macOS yazı tipindeki U+F8FF glifi, 1977 gökkuşağı şeritleri, parıltı geçişi. 24 kare, 70 ms.
 - **Türk bayrağı:** 2994 sayılı Kanun ölçüleri, dalgalanma. 20 kare, 80 ms.
 - **Radar:** dönen ışın, sönen hedefler. 30 kare, 60 ms.
+- **Atatürk:** 2 Ekim 1936 portresi. Kaynak Wikimedia Commons "Mustafa Kemal Atatürk siyah beyaz.jpg", lisans CC0;
+  dosya `src/assets/ataturk-1936.jpg`. Gri ton, ağır yakınlaşma (1 → 1,08 → 1), kırmızı halka, altta kıvrık ad. 24 kare, 90 ms.
+- Hazır görüntüler (fabrika görüntüsü dahil) arayüzde açılır listeden seçilir.
 
 Tuzak: canvas'ta renkleri `source-in` ile birden çok `fillRect` hâlinde basmak, her çizimde alanın dışını siliyor ve logo boş çıkıyor.
 Doğrusu önce renkleri çizip sonra maskeyi `destination-in` ile uygulamak.

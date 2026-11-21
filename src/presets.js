@@ -1,3 +1,5 @@
+import ataturkJpg from './assets/ataturk-1936.jpg';
+
 // Hazır ekran görüntüleri: canvas'ta kare kare çizilir, ScreenGif'in kare listesine ({ bmp, ms }) dönüşür.
 // Hepsi kesintisiz döngü yapar. Ekran 240x240 ve yuvarlak.
 
@@ -202,8 +204,59 @@ export function radar() {
   });
 }
 
+// ---- Atatürk: 2 Ekim 1936 portresi (Wikimedia Commons "Mustafa Kemal Atatürk siyah beyaz.jpg", CC0) ----
+// Ağır yakınlaşma (ileri-geri, kesintisiz döngü), bayrak kırmızısı halka, altta kıvrık yazı.
+function arcText(g, text, r, mid, size) {
+  g.font = `600 ${size}px -apple-system, "Helvetica Neue", sans-serif`;
+  const widths = [...text].map((ch) => g.measureText(ch).width);
+  const spacing = 1.5;
+  const total = widths.reduce((a, w) => a + w + spacing, -spacing);
+  let a = mid + total / r / 2; // alt yayda soldan sağa: açı azalarak ilerler
+  [...text].forEach((ch, i) => {
+    const w = widths[i];
+    const t = a - w / 2 / r;
+    g.save();
+    g.translate(S / 2 + r * Math.cos(t), S / 2 + r * Math.sin(t));
+    g.rotate(t - Math.PI / 2);
+    g.fillText(ch, -w / 2, 0);
+    g.restore();
+    a -= (w + spacing) / r;
+  });
+}
+
+export async function ataturk() {
+  const img = await createImageBitmap(await (await fetch(ataturkJpg)).blob());
+  // baş ve omuzlar: kaynak 650x881, yüz yaklaşık (297, 242)
+  const cx = 305, cy = 300, side = 470;
+  return frames(24, 90, (g, p) => {
+    g.fillStyle = '#000';
+    g.fillRect(0, 0, S, S);
+    const z = 1 + 0.08 * (1 - Math.cos(TAU * p)) / 2; // 1 → 1,08 → 1
+    const sw = side / z;
+    g.filter = 'grayscale(1) contrast(1.08)';
+    g.drawImage(img, cx - sw / 2, cy - sw / 2, sw, sw, 0, 0, S, S);
+    g.filter = 'none';
+    // alt kısımda yazı için karartma
+    const gr = g.createLinearGradient(0, 165, 0, S);
+    gr.addColorStop(0, 'rgba(0,0,0,0)');
+    gr.addColorStop(1, 'rgba(0,0,0,0.85)');
+    g.fillStyle = gr;
+    g.fillRect(0, 165, S, 75);
+    // kenar halkası
+    g.strokeStyle = '#E30A17';
+    g.lineWidth = 7;
+    g.beginPath();
+    g.arc(S / 2, S / 2, S / 2 - 4, 0, TAU);
+    g.stroke();
+    g.fillStyle = '#fff';
+    g.textBaseline = 'middle';
+    arcText(g, 'MUSTAFA KEMAL ATATÜRK', S / 2 - 19, Math.PI / 2, 13);
+  });
+}
+
 export const PRESETS = [
   { id: 'apple', label: 'Apple logosu', make: apple },
   { id: 'flag', label: 'Türk bayrağı', make: turkishFlag },
+  { id: 'ataturk', label: 'Atatürk', make: ataturk },
   { id: 'radar', label: 'Radar', make: radar },
 ];

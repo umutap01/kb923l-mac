@@ -142,27 +142,29 @@ export default function ScreenGif({ say }) {
         <button className="primary" disabled={busy} onClick={() => fileRef.current.click()}>
           Dosya seç…
         </button>
-        <button
+        <select
+          value=""
           disabled={busy}
-          onClick={async () => load(await (await fetch(defaultGif)).blob(), 'Fabrika görüntüsü')}
+          onChange={async (e) => {
+            const id = e.target.value;
+            if (id === 'factory') return load(await (await fetch(defaultGif)).blob(), 'Fabrika görüntüsü');
+            const p = PRESETS.find((x) => x.id === id);
+            if (!p) return;
+            const fr = await p.make();
+            setCount(fr.length);
+            setFit('cover');
+            setDelay(fr[0].ms);
+            setSrc({ name: p.label, frames: fr });
+          }}
         >
-          Fabrika görüntüsü
-        </button>
-        {PRESETS.map((p) => (
-          <button
-            key={p.id}
-            disabled={busy}
-            onClick={async () => {
-              const fr = await p.make();
-              setCount(fr.length);
-              setFit('cover');
-              setDelay(fr[0].ms);
-              setSrc({ name: p.label, frames: fr });
-            }}
-          >
-            {p.label}
-          </button>
-        ))}
+          <option value="">Hazır görüntüler…</option>
+          <option value="factory">Fabrika görüntüsü</option>
+          {PRESETS.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.label}
+            </option>
+          ))}
+        </select>
         <input
           ref={fileRef}
           type="file"
